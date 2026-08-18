@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manager Dashboard — The Waffle Co. Wada</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="dash-body">
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <h1>🧇 Manager Login</h1>
+    <p>The Waffle Co. Wada — back office</p>
+    <form id="loginForm">
+      <input id="loginEmail" type="email" placeholder="Email" required>
+      <input id="loginPassword" type="password" placeholder="Password" required>
+      <button class="btn btn-primary submit-btn" type="submit">Log In</button>
+      <p id="loginError" class="feedback-message error-message"></p>
+    </form>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashWrap" class="hidden">
+  <header class="dash-header">
+    <div class="container">
+      <div class="dash-tabs">
+        <button class="dash-tab active" data-panel="ordersPanel">Orders</button>
+        <button class="dash-tab" data-panel="menuPanel">Menu</button>
+        <button class="dash-tab" data-panel="reportsPanel">Reports</button>
+      </div>
+      <div class="top-bar-user">
+        <span id="staffName"></span>
+        <button class="logout-btn" id="logoutBtn">Log Out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="dash-main">
+    <div class="container">
+
+      <!-- ORDERS PANEL -->
+      <section class="dash-panel active" id="ordersPanel">
+        <h2 class="section-title">Live Orders</h2>
+        <div class="filter-row" id="orderFilterRow">
+          <button class="dash-tab active" data-status="all">All</button>
+          <button class="dash-tab" data-status="pending">Pending</button>
+          <button class="dash-tab" data-status="accepted">Accepted</button>
+          <button class="dash-tab" data-status="preparing">Preparing</button>
+          <button class="dash-tab" data-status="ready">Ready</button>
+          <button class="dash-tab" data-status="delivered">Delivered</button>
+          <button class="dash-tab" data-status="completed">Completed</button>
+        </div>
+        <div id="ordersList"></div>
+      </section>
+
+      <!-- MENU PANEL -->
+      <section class="dash-panel" id="menuPanel">
+        <h2 class="section-title">Menu Management</h2>
+
+        <div class="dash-card" style="margin-bottom:24px">
+          <h3 style="margin-bottom:16px" id="dishFormTitle">Add a New Dish</h3>
+          <form id="dishForm" class="dish-form-grid">
+            <input type="hidden" id="dishId">
+            <label for="dishName">Name</label>
+            <input id="dishName" type="text" placeholder="e.g. Nutella Chocolate Waffle" required>
+
+            <label for="dishCategory">Category</label>
+            <select id="dishCategory" required></select>
+
+            <label for="dishPrice">Price (₹)</label>
+            <input id="dishPrice" type="number" min="0" step="1" placeholder="199" required>
+
+            <label for="dishBadge">Badge (optional)</label>
+            <input id="dishBadge" type="text" placeholder="Popular, Best Seller...">
+
+            <label for="dishDescription">Description</label>
+            <textarea id="dishDescription" rows="2" placeholder="Short description shown on the menu"></textarea>
+
+            <label for="dishPhoto">Photo</label>
+            <input id="dishPhoto" type="file" accept="image/*">
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="dishSubmitBtn">Save Dish</button>
+              <button type="button" class="icon-btn" id="dishCancelEdit" style="display:none">Cancel Edit</button>
+            </div>
+            <p id="dishFormMsg" class="feedback-message"></p>
+          </form>
+        </div>
+
+        <div class="dash-card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Photo</th><th>Name</th><th>Category</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="dishTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- REPORTS PANEL -->
+      <section class="dash-panel" id="reportsPanel">
+        <h2 class="section-title">Reports</h2>
+        <div class="dash-card" style="margin-bottom:22px">
+          <label for="reportDate" style="font-weight:700;display:block;margin-bottom:10px">Select date</label>
+          <input id="reportDate" type="date" style="border:1px solid #ddcdbc;border-radius:12px;padding:10px 14px">
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-box"><span>Orders Completed</span><strong id="statOrders">0</strong></div>
+          <div class="stat-box"><span>Gross Sales</span><strong id="statSubtotal">₹0</strong></div>
+          <div class="stat-box"><span>Tax Payable</span><strong id="statTax">₹0</strong></div>
+          <div class="stat-box"><span>Total Income</span><strong id="statIncome">₹0</strong></div>
+        </div>
+
+        <div class="dash-card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Order #</th><th>Customer</th><th>Completed At</th><th>Subtotal</th><th>Tax</th><th>Total</th></tr></thead>
+              <tbody id="reportTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
