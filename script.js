@@ -9,6 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let cart = loadCart();        // [{dish_id, name, price, image_url, quantity}]
 
   const money = (n) => "₹" + Number(n).toFixed(0);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
 
   function loadCart() {
     try {
@@ -36,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .order("created_at", { ascending: true });
 
     if (error) {
-      menuGrid.innerHTML = `<p class="menu-loading">Couldn't load the menu right now. Please refresh.</p>`;
+      menuGrid.innerHTML = `<p class="menu-loading col-span-full text-center py-12 font-body-md text-on-surface-variant">Couldn't load the menu right now. Please refresh.</p>`;
       console.error(error);
       return;
     }
@@ -51,25 +54,30 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     if (visible.length === 0) {
-      menuGrid.innerHTML = `<p class="menu-loading">No dishes in this category yet.</p>`;
+      menuGrid.innerHTML = `<p class="menu-loading col-span-full text-center py-12 font-body-md text-on-surface-variant">No dishes in this category yet.</p>`;
       return;
     }
 
     menuGrid.innerHTML = visible.map((d) => `
-      <article class="menu-card" data-id="${d.id}">
-        <div class="food-image">
-          <img src="${d.image_url || "https://images.unsplash.com/photo-1562376552-0d160a2f238d?auto=format&fit=crop&w=900&q=85"}" alt="${d.name}">
-          ${d.badge ? `<span class="badge">${d.badge}</span>` : ""}
-        </div>
-        <div class="card-body">
-          <h3>${d.name}</h3>
-          <p>${d.description || ""}</p>
-          <div class="card-bottom">
-            <strong>${money(d.price)}</strong>
-            <button class="add-btn" data-id="${d.id}">+</button>
+      <div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between" data-category="${esc(d.categories?.slug || "")}">
+        <div>
+          <div class="relative w-full aspect-16/10 overflow-hidden bg-surface-container">
+            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" src="${esc(d.image_url) || "https://images.unsplash.com/photo-1562376552-0d160a2f238d?auto=format&fit=crop&w=900&q=85"}" alt="${esc(d.name)}">
+            ${d.badge ? `<span class="absolute top-space-xs right-space-xs px-space-xs py-space-2xs bg-tertiary-container text-on-tertiary-container rounded-full font-label-sm shadow-sm">${esc(d.badge)}</span>` : ""}
+          </div>
+          <div class="p-space-md flex flex-col gap-space-2xs">
+            <h3 class="font-headline-sm text-headline-sm text-primary">${esc(d.name)}</h3>
+            <p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">${esc(d.description || "")}</p>
           </div>
         </div>
-      </article>
+        <div class="px-space-md pb-space-md pt-space-xs flex items-center justify-between">
+          <span class="font-headline-sm text-headline-sm text-secondary font-bold">${money(d.price)}</span>
+          <button class="add-to-plate-btn inline-flex items-center gap-space-2xs px-space-md py-space-xs bg-primary-container hover:bg-primary text-on-primary rounded-full font-label-md transition-colors active:scale-95 shadow-sm" data-id="${esc(d.id)}">
+            <span class="material-symbols-outlined text-[16px]">add</span>
+            <span>Add to Plate</span>
+          </button>
+        </div>
+      </div>
     `).join("");
   }
 
@@ -86,12 +94,18 @@ document.addEventListener("DOMContentLoaded", () => {
      ========================================= */
 
   const filterButtons = document.querySelectorAll(".filter-btn");
+  const ACTIVE_CLASSES = ["bg-primary-container", "text-on-primary", "shadow-sm"];
+  const INACTIVE_CLASSES = ["bg-surface-container", "text-on-surface", "hover:bg-surface-container-high"];
 
   filterButtons.forEach((button) => {
     button.addEventListener("click", () => {
       activeFilter = button.dataset.filter;
-      filterButtons.forEach((btn) => btn.classList.remove("active"));
-      button.classList.add("active");
+      filterButtons.forEach((btn) => {
+        btn.classList.remove("active", ...ACTIVE_CLASSES);
+        btn.classList.add(...INACTIVE_CLASSES);
+      });
+      button.classList.add("active", ...ACTIVE_CLASSES);
+      button.classList.remove(...INACTIVE_CLASSES);
       renderMenu();
     });
   });
@@ -101,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
      ========================================= */
 
   menuGrid.addEventListener("click", (event) => {
-    const button = event.target.closest(".add-btn");
+    const button = event.target.closest(".add-to-plate-btn");
     if (!button) return;
 
     const dish = dishes.find((d) => d.id === button.dataset.id);
@@ -116,20 +130,23 @@ document.addEventListener("DOMContentLoaded", () => {
     saveCart();
     renderCart();
 
-    button.textContent = "✓";
-    setTimeout(() => { button.textContent = "+"; }, 900);
+    const label = button.querySelector("span:last-child");
+    const original = label.textContent;
+    label.textContent = "Added ✓";
+    setTimeout(() => { label.textContent = original; }, 900);
   });
 
   /* =========================================
      4. CART DRAWER
      ========================================= */
 
-  const cartBtn = document.getElementById("cartBtn");
+  const cartBtn = document.getElementById("cart-btn");
   const cartCount = document.getElementById("cartCount");
   const cartDrawer = document.getElementById("cartDrawer");
   const drawerOverlay = document.getElementById("drawerOverlay");
   const cartCloseBtn = document.getElementById("cartCloseBtn");
   const cartItemsEl = document.getElementById("cartItems");
+  const cartItemsLabel = document.getElementById("cartItemsLabel");
   const cartSubtotalEl = document.getElementById("cartSubtotal");
   const checkoutBtn = document.getElementById("checkoutBtn");
 
@@ -143,25 +160,43 @@ document.addEventListener("DOMContentLoaded", () => {
     cartCount.style.display = totalQty > 0 ? "inline-flex" : "none";
 
     if (cart.length === 0) {
-      cartItemsEl.innerHTML = `<p class="cart-empty">Your plate is empty. Add something delicious!</p>`;
+      cartItemsEl.innerHTML = `<p class="font-body-md text-on-surface-variant text-center py-space-xl">Your plate is empty. Add something delicious!</p>`;
       checkoutBtn.disabled = true;
+      cartItemsLabel.textContent = "Items Subtotal";
     } else {
       cartItemsEl.innerHTML = cart.map((item) => `
-        <div class="cart-item" data-id="${item.dish_id}">
-          <img src="${item.image_url || ""}" alt="${item.name}">
-          <div class="cart-item-info">
-            <h4>${item.name}</h4>
-            <span>${money(item.price)}</span>
-            <div class="qty-control">
-              <button class="qty-btn" data-action="dec" data-id="${item.dish_id}">−</button>
-              <span>${item.quantity}</span>
-              <button class="qty-btn" data-action="inc" data-id="${item.dish_id}">+</button>
-              <button class="remove-btn" data-action="remove" data-id="${item.dish_id}">Remove</button>
+        <div class="flex flex-col gap-space-xs p-space-sm rounded-xl bg-surface-container-low border border-surface-variant/50 shadow-sm" data-id="${esc(item.dish_id)}">
+          <div class="flex items-start gap-space-sm">
+            <img src="${esc(item.image_url) || ""}" alt="${esc(item.name)}" class="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-surface-container">
+            <div class="flex-1 flex flex-col">
+              <div class="flex items-start justify-between gap-space-2xs">
+                <h4 class="font-headline-sm text-headline-sm text-primary leading-tight">${esc(item.name)}</h4>
+                <button class="text-on-surface-variant hover:text-error transition-colors p-0.5" title="Remove item" data-action="remove" data-id="${esc(item.dish_id)}">
+                  <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+              </div>
+              <div class="flex items-center justify-between mt-space-xs pt-space-2xs border-t border-surface-variant/40">
+                <div class="flex items-center gap-space-2xs">
+                  <span class="font-label-sm text-on-surface-variant">${money(item.price)}</span>
+                  <span class="text-[11px] text-on-surface-variant">× ${item.quantity}</span>
+                  <span class="font-headline-sm text-headline-sm text-secondary font-bold ml-space-2xs">${money(item.price * item.quantity)}</span>
+                </div>
+                <div class="flex items-center gap-space-2xs bg-surface-container rounded-full px-space-2xs py-1">
+                  <button class="w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary hover:bg-surface transition-colors" data-action="dec" data-id="${esc(item.dish_id)}">
+                    <span class="material-symbols-outlined text-[14px]">remove</span>
+                  </button>
+                  <span class="font-label-md px-space-xs text-primary font-bold">${item.quantity}</span>
+                  <button class="w-6 h-6 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary hover:bg-surface transition-colors" data-action="inc" data-id="${esc(item.dish_id)}">
+                    <span class="material-symbols-outlined text-[14px]">add</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       `).join("");
       checkoutBtn.disabled = false;
+      cartItemsLabel.textContent = `Items Subtotal (${totalQty} treat${totalQty > 1 ? "s" : ""})`;
     }
 
     cartSubtotalEl.textContent = money(cartSubtotal());
@@ -183,12 +218,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function openCart() {
-    cartDrawer.classList.add("open");
-    drawerOverlay.classList.add("open");
+    cartDrawer.classList.remove("translate-x-full");
+    drawerOverlay.classList.remove("opacity-0", "pointer-events-none");
   }
   function closeCart() {
-    cartDrawer.classList.remove("open");
-    drawerOverlay.classList.remove("open");
+    cartDrawer.classList.add("translate-x-full");
+    drawerOverlay.classList.add("opacity-0", "pointer-events-none");
   }
 
   cartBtn.addEventListener("click", openCart);
@@ -214,15 +249,16 @@ document.addEventListener("DOMContentLoaded", () => {
   function openCheckout() {
     if (cart.length === 0) return;
     checkoutSummary.innerHTML = cart.map((item) =>
-      `<div class="summary-row"><span>${item.name} × ${item.quantity}</span><span>${money(item.price * item.quantity)}</span></div>`
-    ).join("") + `<div class="summary-row summary-total"><span>Subtotal</span><span>${money(cartSubtotal())}</span></div>`;
+      `<div class="flex items-center justify-between"><span>${esc(item.name)} × ${item.quantity}</span><span class="font-semibold text-on-surface">${money(item.price * item.quantity)}</span></div>`
+    ).join("") + `<div class="flex items-center justify-between pt-space-2xs border-t border-surface-variant font-bold text-primary"><span>Subtotal</span><span>${money(cartSubtotal())}</span></div>`;
+    checkoutError.classList.add("hidden");
     checkoutError.textContent = "";
     closeCart();
-    checkoutOverlay.classList.add("open");
+    checkoutOverlay.classList.remove("opacity-0", "pointer-events-none");
   }
 
   function closeCheckout() {
-    checkoutOverlay.classList.remove("open");
+    checkoutOverlay.classList.add("opacity-0", "pointer-events-none");
   }
 
   checkoutBtn.addEventListener("click", openCheckout);
@@ -230,6 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkoutForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    checkoutError.classList.add("hidden");
     checkoutError.textContent = "";
 
     const name = document.getElementById("checkoutName").value.trim();
@@ -254,6 +291,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (error) {
       checkoutError.textContent = error.message || "Something went wrong placing your order.";
+      checkoutError.classList.remove("hidden");
       return;
     }
 
@@ -273,21 +311,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const confirmOverlay = document.getElementById("confirmOverlay");
   const confirmCloseBtn = document.getElementById("confirmCloseBtn");
+  const confirmDoneBtn = document.getElementById("confirmDoneBtn");
   const confirmContent = document.getElementById("confirmContent");
 
   function showOrderConfirmation(orderNumber, accessCode) {
     confirmContent.innerHTML = `
-      <div class="confirm-icon">🧇</div>
-      <h3>Order Placed!</h3>
-      <p>Your order is in the kitchen's queue. Save these details to track it and view your invoice:</p>
-      <div class="order-code-box">
-        <div><span>Order Number</span><strong>${orderNumber}</strong></div>
-        <div><span>Order Code</span><strong>${accessCode}</strong></div>
+      <h3 class="font-headline-md text-headline-md text-primary">Plate Fired Up!</h3>
+      <p class="font-body-md text-on-surface-variant">Order <strong class="text-primary font-semibold">${esc(orderNumber)}</strong> has reached our Wada counter. We've started heating the Belgian irons!</p>
+      <div class="mt-space-sm p-space-sm rounded-xl bg-surface-container text-on-surface font-body-sm">
+        Access Code: <span class="font-bold text-secondary">${esc(accessCode)}</span>
       </div>
-      <p class="small-note">We've prefilled the tracking form for you below.</p>
-      <button class="btn btn-primary submit-btn" id="goTrackBtn">Track This Order</button>
+      <p class="font-body-sm text-on-surface-variant">Save these details to track your order below.</p>
+      <button class="w-full py-space-sm bg-primary-container hover:bg-primary text-on-primary font-label-lg rounded-xl transition-all shadow-sm mt-space-xs" id="goTrackBtn">Track This Order</button>
     `;
-    confirmOverlay.classList.add("open");
+    confirmOverlay.classList.remove("opacity-0", "pointer-events-none");
 
     document.getElementById("goTrackBtn").addEventListener("click", () => {
       closeConfirm();
@@ -299,10 +336,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function closeConfirm() {
-    confirmOverlay.classList.remove("open");
+    confirmOverlay.classList.add("opacity-0", "pointer-events-none");
   }
 
   confirmCloseBtn.addEventListener("click", closeConfirm);
+  if (confirmDoneBtn) confirmDoneBtn.addEventListener("click", closeConfirm);
 
   /* =========================================
      7. TRACK ORDER
@@ -312,26 +350,43 @@ document.addEventListener("DOMContentLoaded", () => {
   const trackError = document.getElementById("trackError");
   const trackResult = document.getElementById("trackResult");
 
-  const STATUS_STEPS = ["pending", "accepted", "preparing", "ready", "delivered", "completed"];
+  const STATUS_STEPS = ["pending", "accepted", "preparing", "ready", "delivered"];
+  const STATUS_ICONS = { pending: "receipt_long", accepted: "check", preparing: "rotate_right", ready: "notifications", delivered: "done_all" };
   const STATUS_LABELS = {
-    pending: "Order received",
-    accepted: "Accepted by kitchen",
-    preparing: "Being prepared",
+    pending: "Pending",
+    accepted: "Accepted",
+    preparing: "Preparing",
     ready: "Ready",
+    delivered: "Delivered",
+    completed: "Completed",
+    cancelled: "Cancelled"
+  };
+  const HEADER_LABELS = {
+    pending: "Order Received",
+    accepted: "Accepted by Kitchen",
+    preparing: "In The Griddle",
+    ready: "Ready for Pickup",
     delivered: "Delivered — awaiting your confirmation",
     completed: "Completed",
     cancelled: "Cancelled"
   };
 
-  let trackedOrder = null;
   let trackChannel = null;
 
   trackForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    trackError.classList.add("hidden");
     trackError.textContent = "";
 
     const orderNumber = document.getElementById("trackOrderNumber").value.trim();
     const accessCode = document.getElementById("trackAccessCode").value.trim();
+
+    if (!orderNumber || !accessCode) {
+      trackError.textContent = "Please check your Order Number and Access Code.";
+      trackError.classList.remove("hidden");
+      trackResult.classList.add("hidden");
+      return;
+    }
 
     const { data, error } = await supabaseClient.rpc("get_order_status", {
       p_order_number: orderNumber,
@@ -340,11 +395,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (error) {
       trackError.textContent = error.message || "Order not found.";
+      trackError.classList.remove("hidden");
       trackResult.classList.add("hidden");
       return;
     }
 
-    trackedOrder = data;
     renderTrackResult(data);
     subscribeToOrder(orderNumber, accessCode);
   });
@@ -358,49 +413,70 @@ document.addEventListener("DOMContentLoaded", () => {
           p_order_number: orderNumber,
           p_access_code: accessCode
         });
-        if (data) {
-          trackedOrder = data;
-          renderTrackResult(data);
-        }
+        if (data) renderTrackResult(data);
       })
       .subscribe();
   }
 
   function renderTrackResult(order) {
     trackResult.classList.remove("hidden");
+    trackResult.classList.add("flex");
 
     const stepIndex = STATUS_STEPS.indexOf(order.status);
     const isCancelled = order.status === "cancelled";
+    const isCompleted = order.status === "completed";
+    const effectiveIndex = isCompleted ? STATUS_STEPS.length - 1 : stepIndex;
+    const progressPct = isCancelled ? 0 : (effectiveIndex / (STATUS_STEPS.length - 1)) * 100;
 
-    const stepsHtml = STATUS_STEPS.map((step, i) => `
-      <div class="status-step ${!isCancelled && i <= stepIndex ? "done" : ""} ${!isCancelled && i === stepIndex ? "current" : ""}">
-        <span class="status-dot"></span>
-        <span class="status-label">${STATUS_LABELS[step]}</span>
-      </div>
-    `).join("");
+    const stepsHtml = STATUS_STEPS.map((step, i) => {
+      const done = !isCancelled && i <= effectiveIndex;
+      const current = !isCancelled && i === effectiveIndex && !isCompleted;
+      let circleClasses = "bg-surface-variant text-on-surface-variant";
+      if (done && !current) circleClasses = "bg-secondary text-on-secondary shadow-sm";
+      if (current) circleClasses = "bg-secondary-container text-on-secondary-container ring-4 ring-secondary-fixed";
+      const icon = done && !current ? "check" : STATUS_ICONS[step];
+      const spin = current && step === "preparing" ? "animate-spin" : "";
+      return `
+        <div class="relative z-10 flex flex-col items-center gap-space-2xs">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center ${circleClasses}">
+            <span class="material-symbols-outlined text-[16px] ${spin}">${icon}</span>
+          </div>
+          <span class="font-label-sm text-label-sm ${current ? "text-secondary font-bold" : done ? "text-primary" : "text-on-surface-variant"}">${STATUS_LABELS[step]}</span>
+        </div>`;
+    }).join("");
 
     const itemsHtml = order.items.map((item) =>
-      `<div class="summary-row"><span>${item.dish_name} × ${item.quantity}</span><span>₹${Number(item.line_total).toFixed(0)}</span></div>`
+      `<div class="flex items-center justify-between"><span>${esc(item.dish_name)} × ${item.quantity}</span><span>${money(item.line_total)}</span></div>`
     ).join("");
 
     trackResult.innerHTML = `
-      <div class="order-status-header">
-        <h3>${order.order_number}</h3>
-        <span class="status-pill status-${order.status}">${STATUS_LABELS[order.status] || order.status}</span>
+      <div class="flex items-center justify-between pb-space-sm border-b border-surface-variant">
+        <div>
+          <span class="font-label-sm text-on-surface-variant uppercase">Tracking Order</span>
+          <h4 class="font-headline-sm text-headline-sm text-primary">${esc(order.order_number)}</h4>
+        </div>
+        <span class="px-space-sm py-space-2xs rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm">${HEADER_LABELS[order.status] || order.status}</span>
       </div>
 
-      ${isCancelled ? `<p class="feedback-message error-message">This order was cancelled.</p>` : `<div class="status-track">${stepsHtml}</div>`}
+      ${isCancelled
+        ? `<div class="feedback-message error-message px-space-md py-space-xs rounded-lg bg-error-container text-on-error-container font-body-sm">This order was cancelled.</div>`
+        : `<div class="relative flex items-center justify-between w-full">
+             <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-surface-variant w-full z-0"></div>
+             <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-secondary z-0 transition-all duration-500" style="width:${progressPct}%"></div>
+             ${stepsHtml}
+           </div>`
+      }
 
-      <div class="checkout-summary">
+      <div class="flex flex-col gap-space-2xs p-space-sm rounded-xl bg-surface-container-low font-body-sm">
         ${itemsHtml}
-        <div class="summary-row"><span>Subtotal</span><span>₹${Number(order.subtotal).toFixed(0)}</span></div>
-        <div class="summary-row"><span>Tax (${order.tax_rate}%)</span><span>₹${Number(order.tax_amount).toFixed(0)}</span></div>
-        <div class="summary-row summary-total"><span>Grand Total</span><span>₹${Number(order.grand_total).toFixed(0)}</span></div>
+        <div class="flex items-center justify-between pt-space-2xs border-t border-surface-variant"><span>Subtotal</span><span>${money(order.subtotal)}</span></div>
+        <div class="flex items-center justify-between"><span>Tax (${order.tax_rate}%)</span><span>${money(order.tax_amount)}</span></div>
+        <div class="flex items-center justify-between font-bold text-primary"><span>Grand Total</span><span>${money(order.grand_total)}</span></div>
       </div>
 
-      ${order.status === "delivered" ? `<button class="btn btn-primary submit-btn" id="confirmReceiptBtn">I've Received My Order</button>` : ""}
-      ${order.status === "completed" ? `<p class="invoice-note">✅ Thank you! This is your final invoice — screenshot or print for your records.</p>` : ""}
-      <p id="trackActionMsg" class="feedback-message"></p>
+      ${order.status === "delivered" ? `<button class="w-full py-space-sm bg-primary-container hover:bg-primary text-on-primary font-label-lg rounded-xl transition-all shadow-sm" id="confirmReceiptBtn">I've Received My Order</button>` : ""}
+      ${order.status === "completed" ? `<p class="font-body-sm text-on-surface-variant">✅ Thank you! This is your final invoice — screenshot or print for your records.</p>` : ""}
+      <p id="trackActionMsg" class="feedback-message font-body-sm"></p>
     `;
 
     const confirmBtn = document.getElementById("confirmReceiptBtn");
@@ -413,8 +489,9 @@ document.addEventListener("DOMContentLoaded", () => {
           p_access_code: document.getElementById("trackAccessCode").value.trim()
         });
         if (error) {
-          document.getElementById("trackActionMsg").textContent = error.message;
-          document.getElementById("trackActionMsg").classList.add("error-message");
+          const msgEl = document.getElementById("trackActionMsg");
+          msgEl.textContent = error.message;
+          msgEl.classList.add("error-message");
           confirmBtn.disabled = false;
           confirmBtn.textContent = "I've Received My Order";
         } else {
@@ -432,7 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
      8. FEEDBACK FORM
      ========================================= */
 
-  const stars = document.querySelectorAll("#stars button");
+  const stars = document.querySelectorAll("#stars .star-btn");
   let selectedRating = 0;
 
   stars.forEach((star) => {
@@ -450,6 +527,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (feedbackForm) {
     feedbackForm.addEventListener("submit", (event) => {
       event.preventDefault();
+
+      feedbackMessage.classList.remove("hidden");
 
       if (selectedRating === 0) {
         feedbackMessage.style.color = "#b85c20";
@@ -474,9 +553,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const mainNav = document.getElementById("mainNav");
 
   if (menuToggle && mainNav) {
-    menuToggle.addEventListener("click", () => mainNav.classList.toggle("open"));
+    menuToggle.addEventListener("click", () => {
+      mainNav.classList.toggle("hidden");
+      mainNav.classList.toggle("flex");
+    });
     mainNav.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", () => mainNav.classList.remove("open"));
+      link.addEventListener("click", () => {
+        mainNav.classList.add("hidden");
+        mainNav.classList.remove("flex");
+      });
     });
   }
 
