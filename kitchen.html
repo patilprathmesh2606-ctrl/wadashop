@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kitchen Dashboard — The Waffle Co. Wada</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="dash-body">
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <h1>🧇 Kitchen Login</h1>
+    <p>The Waffle Co. Wada — kitchen queue</p>
+    <form id="loginForm">
+      <input id="loginEmail" type="email" placeholder="Email" required>
+      <input id="loginPassword" type="password" placeholder="Password" required>
+      <button class="btn btn-primary submit-btn" type="submit">Log In</button>
+      <p id="loginError" class="feedback-message error-message"></p>
+    </form>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashWrap" class="hidden">
+  <header class="dash-header">
+    <div class="container">
+      <div class="dash-tabs">
+        <span style="font-weight:800;font-size:18px;color:#2d1b11">🧇 Kitchen Queue</span>
+      </div>
+      <div class="top-bar-user">
+        <span id="staffName"></span>
+        <button class="logout-btn" id="logoutBtn">Log Out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="dash-main">
+    <div class="container">
+      <div class="filter-row" id="orderFilterRow">
+        <button class="dash-tab active" data-status="active">Active</button>
+        <button class="dash-tab" data-status="pending">New</button>
+        <button class="dash-tab" data-status="accepted">Accepted</button>
+        <button class="dash-tab" data-status="preparing">Preparing</button>
+        <button class="dash-tab" data-status="ready">Ready</button>
+      </div>
+      <div id="ordersList"></div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-client.js"></script>
+<script src="kitchen.js"></script>
+</body>
+</html>
