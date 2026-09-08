@@ -372,19 +372,20 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   let trackChannel = null;
+  const LAST_ORDER_KEY = "wcw_last_order";
 
-  trackForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    trackError.classList.add("hidden");
-    trackError.textContent = "";
-
-    const orderNumber = document.getElementById("trackOrderNumber").value.trim();
-    const accessCode = document.getElementById("trackAccessCode").value.trim();
+  async function trackOrder(orderNumber, accessCode, { silent = false } = {}) {
+    if (!silent) {
+      trackError.classList.add("hidden");
+      trackError.textContent = "";
+    }
 
     if (!orderNumber || !accessCode) {
-      trackError.textContent = "Please check your Order Number and Access Code.";
-      trackError.classList.remove("hidden");
-      trackResult.classList.add("hidden");
+      if (!silent) {
+        trackError.textContent = "Please check your Order Number and Access Code.";
+        trackError.classList.remove("hidden");
+        trackResult.classList.add("hidden");
+      }
       return;
     }
 
@@ -394,33 +395,82 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     if (error) {
-      trackError.textContent = error.message || "Order not found.";
-      trackError.classList.remove("hidden");
-      trackResult.classList.add("hidden");
+      if (!silent) {
+        trackError.textContent = error.message || "Order not found.";
+        trackError.classList.remove("hidden");
+        trackResult.classList.add("hidden");
+      }
+      // stop remembering an order that no longer resolves (e.g. wrong/old code)
+      localStorage.removeItem(LAST_ORDER_KEY);
       return;
     }
 
+    // remember this order so a page refresh keeps showing it
+    localStorage.setItem(LAST_ORDER_KEY, JSON.stringify({ orderNumber, accessCode }));
+
     renderTrackResult(data);
     subscribeToOrder(orderNumber, accessCode);
+  }
+
+  trackForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const orderNumber = document.getElementById("trackOrderNumber").value.trim();
+    const accessCode = document.getElementById("trackAccessCode").value.trim();
+    trackOrder(orderNumber, accessCode);
   });
+
+  // Restore tracking on page load / refresh
+  (function restoreLastTrackedOrder() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAST_ORDER_KEY));
+      if (saved?.orderNumber && saved?.accessCode) {
+        document.getElementById("trackOrderNumber").value = saved.orderNumber;
+        document.getElementById("trackAccessCode").value = saved.accessCode;
+        trackOrder(saved.orderNumber, saved.accessCode, { silent: true });
+      }
+    } catch {
+      localStorage.removeItem(LAST_ORDER_KEY);
+    }
+  })();
 
   function subscribeToOrder(orderNumber, accessCode) {
     if (trackChannel) supabaseClient.removeChannel(trackChannel);
     trackChannel = supabaseClient
       .channel("track:" + orderNumber)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, async () => {
-        const { data } = await supabaseClient.rpc("get_order_status", {
-          p_order_number: orderNumber,
-          p_access_code: accessCode
-        });
-        if (data) renderTrackResult(data);
-      })
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: "order_number=eq." + orderNumber },
+        async () => {
+          const { data } = await supabaseClient.rpc("get_order_status", {
+            p_order_number: orderNumber,
+            p_access_code: accessCode
+          });
+          if (data) renderTrackResult(data);
+        }
+      )
       .subscribe();
+  }
+
+  // Let a customer stop tracking / clear a stale order manually
+  const trackStopBtn = document.getElementById("trackStopBtn");
+  const trackStopWrap = document.getElementById("trackStopWrap");
+  if (trackStopBtn) {
+    trackStopBtn.addEventListener("click", () => {
+      localStorage.removeItem(LAST_ORDER_KEY);
+      if (trackChannel) supabaseClient.removeChannel(trackChannel);
+      trackForm.reset();
+      trackResult.classList.add("hidden");
+      trackResult.classList.remove("flex");
+      trackStopWrap.classList.add("hidden");
+      trackStopWrap.classList.remove("flex");
+    });
   }
 
   function renderTrackResult(order) {
     trackResult.classList.remove("hidden");
     trackResult.classList.add("flex");
+    trackStopWrap.classList.remove("hidden");
+    trackStopWrap.classList.add("flex");
 
     const stepIndex = STATUS_STEPS.indexOf(order.status);
     const isCancelled = order.status === "cancelled";
